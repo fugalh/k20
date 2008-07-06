@@ -1,2 +1,2 @@
-LDFLAGS+=-lncurses -ljack
+LDFLAGS+=-lncurses -ljack -lm
 all: k20
