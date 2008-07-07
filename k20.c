@@ -68,8 +68,12 @@ int main(int argc, char **argv)
         memset(meter, ' ', 71);
         meter[71] = 0;
         memset(meter, '#', min(max(0, 71+(int)ctx.rms), 71));
-        meter[min(max(0, 71+(int)ctx.peak), 71)] = '#';
-        meter[min(max(0, 71+(int)ctx.maxpeak), 71)] = '#';
+        int p = min(71, 71+(int)ctx.peak);
+        if (p >= 0)
+            meter[p] = '#';
+        p = min(71, 71+(int)ctx.maxpeak);
+        if (p >= 0)
+            meter[p] = '#';
 
         printf("\e[K\e[32m%.51s\e[33m%.5s\e[31m%s\e[0m", meter, meter+51, meter+56);
         if (ctx.overs > 0)
