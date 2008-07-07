@@ -21,14 +21,15 @@ struct context {
 #define max(x,y) ((x<y)?y:x)
 int jack_process(jack_nframes_t, void*);
 float dbfs(float amplitude) { return 20*log(max(amplitude, 0) / 1.0); }
+int scale(float dbfs);
 
 int main(int argc, char **argv)
 {
     struct context ctx;
     ctx.peak = ctx.rms = ctx.maxpeak = dbfs(0);
     ctx.overs = 0;
-    printf("-50        40        30        20   15   10  6  3  0  3  6   10   15   20+\n");
-    printf(" |         |         |         |    |    |   |  |  |  |  |   |    |    |\n");
+    printf("-70   60   50   40   30        20   15   10  6  3  0  3  6   10   15   20+\n");
+    printf(" |    |    |    |    |         |    |    |   |  |  |  |  |   |    |    |\n");
     
     // JACK initialization
     ctx.jack = jack_client_open("k20", 0, 0);
@@ -63,21 +64,26 @@ int main(int argc, char **argv)
 
     while (sem_wait(ctx.sem) != -1)
     {
-        char meter[72];
+        char meter[71];
 
-        memset(meter, ' ', 71);
-        meter[71] = 0;
-        memset(meter, '#', min(max(0, 71+(int)ctx.rms), 71));
-        int p = min(71, 71+(int)ctx.peak);
+        memset(meter, ' ', 70);
+        meter[70] = 0;
+        int p = scale(ctx.rms);
+        if (p >= 0)
+            memset(meter, '#', p);
+        p = scale(ctx.peak)-1;
         if (p >= 0)
             meter[p] = '#';
-        p = min(71, 71+(int)ctx.maxpeak);
+        p = scale(ctx.maxpeak)-1;
         if (p >= 0)
             meter[p] = '#';
 
-        printf("\e[K\e[32m%.51s\e[33m%.5s\e[31m%s\e[0m", meter, meter+51, meter+56);
+        printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.15s\e[0m", meter, meter+50, meter+55);
         if (ctx.overs > 0)
-            printf("  \e[41;37m %d \e[0m", ctx.overs);
+            printf("    \e[41;37m %d \e[0m", ctx.overs);
+#ifdef DEBUG
+        printf(" %d %d", (int)ctx.peak, scale(ctx.peak));
+#endif
         printf("\r");
 
         fflush(stdout);
@@ -85,6 +91,17 @@ int main(int argc, char **argv)
 
     jack_deactivate(ctx.jack);
     jack_client_close(ctx.jack);
+}
+
+int scale(float dbfs)
+{
+    int x;
+    if (dbfs < -50)
+        x = (90+dbfs)/2;
+    else
+        x = 70+dbfs;
+
+    return max(0, min(x, 70));
 }
 
 // XXX not sure about the ballistics. Right now, just linear falloff which
