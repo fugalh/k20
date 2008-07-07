@@ -1,7 +1,0 @@
--50        40        30        20   15   10  6  3  0  3  6   10   15   20+
- |         |         |         |    |    |   |  |  |  |  |   |    |    |   3
-
-peak instantaneous with 3s/26dB falloff
-max peak or highest peak in 10s
-overs (an over is >=3 contiguous samples at 0dB)
-

@@ -1,0 +1,14 @@
+Simple ANSI terminal K-20 meter[1] for JACK[2].
+
+Currently, the RMS calculation is instant-rise, 300ms fall, and is calculated
+over the jack buffer. This needs fixing. Should(?) be 300ms rise and fall with
+an appropriate (less arbitrary) window.
+
+The peak is instant-rise and falls linearly at 26 dB / 3 sec.
+
+The over count is the number of overs, where an over is a period of 3 or more
+samples at 0dB FS or greater (JACK can have positive dB FS because it's
+floating point; 0dB == 1.0).
+
+1. http://www.digido.com/bob-katz/level-practices-part-2-includes-the-k-system.html
+2. http://jackaudio.org
