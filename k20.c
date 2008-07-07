@@ -17,7 +17,7 @@ struct context {
 };
 
 #define min(x,y) ((x>y)?y:x)
-#define max(x,y) ((x>y)?x:y)
+#define max(x,y) ((x<y)?y:x)
 int jack_process(jack_nframes_t, void*);
 float dbfs(float amplitude) { return 20*log(max(amplitude, 0) / 1.0); }
 
@@ -84,6 +84,7 @@ int jack_process(jack_nframes_t nframes, void *arg)
     struct context *ctx = (struct context*)arg;
 
     jack_nframes_t sr = jack_get_sample_rate(ctx->jack);
+    float s = (float)nframes/sr;
     float *buf = (float*)jack_port_get_buffer(ctx->in, nframes);
 
     // peak
@@ -93,7 +94,7 @@ int jack_process(jack_nframes_t nframes, void *arg)
         if (buf[i] > peak)
             peak = buf[i];
     peak = dbfs(peak);
-    ctx->peak -= nframes * 26 / (3.0*sr); // fall abt 26dB in 3s
+    ctx->peak -= s * 26/3;
     if (peak > ctx->peak)
         ctx->peak = peak;
 
@@ -107,7 +108,7 @@ int jack_process(jack_nframes_t nframes, void *arg)
     for (i=0; i<nframes; i++)
         sum += buf[i]*buf[i];
     float rms = dbfs(sqrt(sum/nframes)); 
-    ctx->rms -= nframes * 60 / (0.3*sr); // 300ms fall time
+    ctx->rms -= s * 70/0.3; // 300ms fall time
     if (rms > ctx->rms)
         ctx->rms = rms;
 
