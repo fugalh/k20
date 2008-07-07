@@ -77,8 +77,8 @@ int main(int argc, char **argv)
     jack_client_close(ctx.jack);
 }
 
-// TODO the falloff is wrong. needs some kind of exponential decay but I'm not
-// sure what yet. look at jmeters code.
+// XXX not sure about the ballistics. Right now, just linear falloff which
+// doesn't seem quite right.
 int jack_process(jack_nframes_t nframes, void *arg)
 {
     struct context *ctx = (struct context*)arg;
@@ -91,8 +91,11 @@ int jack_process(jack_nframes_t nframes, void *arg)
     float peak = 0;
     int i;
     for (i=0; i<nframes; i++)
-        if (buf[i] > peak)
-            peak = buf[i];
+    {
+        float x = fabsf(buf[i]);
+        if (x > peak)
+            peak = x;
+    }
     peak = dbfs(peak);
     ctx->peak -= s * 26/3;
     if (peak > ctx->peak)
@@ -112,5 +115,7 @@ int jack_process(jack_nframes_t nframes, void *arg)
     if (rms > ctx->rms)
         ctx->rms = rms;
 
+    // overs
+    //
     sem_post(ctx->sem);
 }
