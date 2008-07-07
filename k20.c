@@ -4,6 +4,8 @@
 #include <jack/jack.h>
 #include <semaphore.h>
 #include <math.h>
+#include <string.h>
+
 
 struct context {
     sem_t *sem;
@@ -14,14 +16,17 @@ struct context {
     float maxpeak; // dBFS
 };
 
+#define min(x,y) ((x>y)?y:x)
+#define max(x,y) ((x>y)?x:y)
 int jack_process(jack_nframes_t, void*);
-float dbfs(float amplitude) { return 20*log(amplitude/1.0); }
+float dbfs(float amplitude) { return 20*log(max(amplitude, 0) / 1.0); }
 
 int main(int argc, char **argv)
 {
     struct context ctx;
-    ctx.maxpeak = dbfs(0);
+    ctx.peak = ctx.rms = ctx.maxpeak = dbfs(0);
     printf("-50        40        30        20   15   10  6  3  0  3  6   10   15   20+\n");
+    printf(" |         |         |         |    |    |   |  |  |  |  |   |    |    |\n");
     
     // JACK initialization
     ctx.jack = jack_client_open("k20", 0, 0);
@@ -56,7 +61,15 @@ int main(int argc, char **argv)
 
     while (sem_wait(ctx.sem) != -1)
     {
-        printf("\r%15f %15f %15f", ctx.peak, ctx.rms, ctx.maxpeak);
+        char meter[72];
+
+        memset(meter, ' ', 71);
+        meter[71] = 0;
+        memset(meter, '#', min(max(0, 71+(int)ctx.rms), 71));
+        meter[min(max(0, 71+(int)ctx.peak), 71)] = '#';
+        meter[min(max(0, 71+(int)ctx.maxpeak), 71)] = '#';
+
+        printf("\e[K\e[32m%.51s\e[33m%.5s\e[31m%s\e[0m %d %d %d\r", meter, meter+51, meter+56, (int)ctx.rms, (int)ctx.peak, (int)ctx.maxpeak);
         fflush(stdout);
     }
 
@@ -64,6 +77,8 @@ int main(int argc, char **argv)
     jack_client_close(ctx.jack);
 }
 
+// TODO the falloff is wrong. needs some kind of exponential decay but I'm not
+// sure what yet. look at jmeters code.
 int jack_process(jack_nframes_t nframes, void *arg)
 {
     struct context *ctx = (struct context*)arg;
@@ -77,18 +92,24 @@ int jack_process(jack_nframes_t nframes, void *arg)
     for (i=0; i<nframes; i++)
         if (buf[i] > peak)
             peak = buf[i];
-    ctx->peak = dbfs(peak/1.0); // dBFS
+    peak = dbfs(peak);
+    ctx->peak -= nframes * 26 / (3.0*sr); // fall abt 26dB in 3s
+    if (peak > ctx->peak)
+        ctx->peak = peak;
 
     // max peak
     if (ctx->peak > ctx->maxpeak)
         ctx->maxpeak = ctx->peak;
 
     // RMS
-    // XXX the buffer is probably not the appropriate window 
+    // XXX the buffer is probably not the appropriate window ?
     float sum = 0;
     for (i=0; i<nframes; i++)
         sum += buf[i]*buf[i];
-    ctx->rms = dbfs(sqrt(sum/nframes));
+    float rms = dbfs(sqrt(sum/nframes)); 
+    ctx->rms -= nframes * 60 / (0.3*sr); // 300ms fall time
+    if (rms > ctx->rms)
+        ctx->rms = rms;
 
     sem_post(ctx->sem);
 }
