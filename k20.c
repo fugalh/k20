@@ -17,8 +17,8 @@ struct context {
     int overs;
 };
 
-#define min(x,y) ((x>y)?y:x)
-#define max(x,y) ((x<y)?y:x)
+#define min(x,y) (((x)>(y))?(y):(x))
+#define max(x,y) (((x)<(y))?(y):(x))
 int jack_process(jack_nframes_t, void*);
 float dbfs(float amplitude) { return 20*log(max(amplitude, 0) / 1.0); }
 int scale(float dbfs);
