@@ -14,6 +14,7 @@ struct context {
     float peak; // dBFS
     float rms;  // dBFS
     float maxpeak; // dBFS
+    int overs;
 };
 
 #define min(x,y) ((x>y)?y:x)
@@ -25,6 +26,7 @@ int main(int argc, char **argv)
 {
     struct context ctx;
     ctx.peak = ctx.rms = ctx.maxpeak = dbfs(0);
+    ctx.overs = 0;
     printf("-50        40        30        20   15   10  6  3  0  3  6   10   15   20+\n");
     printf(" |         |         |         |    |    |   |  |  |  |  |   |    |    |\n");
     
@@ -69,7 +71,11 @@ int main(int argc, char **argv)
         meter[min(max(0, 71+(int)ctx.peak), 71)] = '#';
         meter[min(max(0, 71+(int)ctx.maxpeak), 71)] = '#';
 
-        printf("\e[K\e[32m%.51s\e[33m%.5s\e[31m%s\e[0m %d %d %d\r", meter, meter+51, meter+56, (int)ctx.rms, (int)ctx.peak, (int)ctx.maxpeak);
+        printf("\e[K\e[32m%.51s\e[33m%.5s\e[31m%s\e[0m", meter, meter+51, meter+56);
+        if (ctx.overs > 0)
+            printf("  \e[41;37m %d \e[0m", ctx.overs);
+        printf("\r");
+
         fflush(stdout);
     }
 
@@ -116,6 +122,17 @@ int jack_process(jack_nframes_t nframes, void *arg)
         ctx->rms = rms;
 
     // overs
-    //
+    int c = 0;
+    for (i=0; i<nframes; i++)
+    {
+        float x = fabsf(buf[i]);
+        if (x >= 1.0)
+        {
+            if (++c == 3)
+                ctx->overs++;
+        } else
+            c = 0;
+    }
+
     sem_post(ctx->sem);
 }
