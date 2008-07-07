@@ -5,6 +5,7 @@
 #include <semaphore.h>
 #include <math.h>
 #include <string.h>
+#include <fcntl.h>
 
 
 struct context {
