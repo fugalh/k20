@@ -10,5 +10,7 @@ The over count is the number of overs, where an over is a period of 3 or more
 samples at 0dB FS or greater (JACK can have positive dB FS because it's
 floating point; 0dB == 1.0).
 
+Hit enter to reset peaks/overs.
+
 1. http://www.digido.com/bob-katz/level-practices-part-2-includes-the-k-system.html
 2. http://jackaudio.org

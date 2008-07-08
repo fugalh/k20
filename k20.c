@@ -6,6 +6,7 @@
 #include <semaphore.h>
 #include <math.h>
 #include <string.h>
+#include <sys/select.h>
 
 
 struct context {
@@ -73,6 +74,19 @@ int main(int argc, char **argv)
 
     while (sem_wait(ctx.sem) != -1)
     {
+        // reset?
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(fileno(stdin), &readfds);
+        struct timeval tv = {0,0};
+        if (select(fileno(stdin)+1, &readfds, 0, 0, &tv))
+        {
+            char buf[1024];
+            fgets(buf, 1024, stdin);
+            ctx.overs = 0;
+            ctx.maxpeak = ctx.peak = dbfs(0);
+        }
+
         char meter[72];
 
         memset(meter, ' ', 71);

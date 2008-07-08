@@ -1,6 +1,4 @@
-fix rms
-ncurses or gui, to reset overs/max with a keypress
-options
+RMS is true but inefficient. Maybe implement as VU, as in http://tinyurl.com/rmslpf (if I can figure out how)
 multiple meters
+options
 k14 and k12?
-
