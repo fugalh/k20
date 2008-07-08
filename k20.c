@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <jack/jack.h>
+#include "ringbuffer.h"
 #include <semaphore.h>
 #include <math.h>
 #include <string.h>
@@ -14,6 +15,7 @@ struct context {
     float peak; // dBFS
     float rms;  // dBFS
     float maxpeak; // dBFS
+    jack_ringbuffer_t *ring;
     int overs;
 };
 
@@ -60,14 +62,21 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    jack_nframes_t sr = jack_get_sample_rate(ctx.jack);
+    ctx.ring = ringbuffer_create(sr * 0.3);
+    if (ctx.ring == 0)
+    {
+        fprintf(stderr, "Failed to create ringbuffer.\n");
+    }
+
     jack_activate(ctx.jack);
 
     while (sem_wait(ctx.sem) != -1)
     {
-        char meter[71];
+        char meter[72];
 
-        memset(meter, ' ', 70);
-        meter[70] = 0;
+        memset(meter, ' ', 71);
+        meter[71] = 0;
         int p = scale(ctx.rms);
         if (p >= 0)
             memset(meter, '#', p);
@@ -78,7 +87,7 @@ int main(int argc, char **argv)
         if (p >= 0)
             meter[p] = '#';
 
-        printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.15s\e[0m", meter, meter+50, meter+55);
+        printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.16s\e[0m", meter, meter+50, meter+55);
         if (ctx.overs > 0)
             printf("    \e[41;37m %d \e[0m", ctx.overs);
 #ifdef DEBUG
@@ -99,9 +108,9 @@ int scale(float dbfs)
     if (dbfs < -50)
         x = (90+dbfs)/2;
     else
-        x = 70+dbfs;
+        x = 71+dbfs;
 
-    return max(0, min(x, 70));
+    return max(0, min(x, 71));
 }
 
 // XXX not sure about the ballistics. Right now, just linear falloff which
@@ -133,18 +142,18 @@ int jack_process(jack_nframes_t nframes, void *arg)
         ctx->maxpeak = ctx->peak;
 
     // RMS
-    // XXX the buffer is probably not the appropriate window ?
-    // XXX instantaneous rise isn't right, probably
+    ringbuffer_read_advance(ctx->ring, nframes);
+    ringbuffer_write(ctx->ring, buf, nframes);
+    int c = (int)(sr * 0.3);
+    float rmsbuf[c];
+    ringbuffer_peek(ctx->ring, rmsbuf, c);
     float sum = 0;
-    for (i=0; i<nframes; i++)
-        sum += buf[i]*buf[i];
-    float rms = dbfs(sqrt(sum/nframes)); 
-    ctx->rms -= s * 70/0.3; // 300ms fall time
-    if (rms > ctx->rms)
-        ctx->rms = rms;
+    for (i=0; i<c; i++)
+        sum += rmsbuf[i]*rmsbuf[i];
+    ctx->rms = dbfs(sqrt(sum/c)); 
 
     // overs
-    int c = 0;
+    c = 0;
     for (i=0; i<nframes; i++)
     {
         float x = fabsf(buf[i]);
@@ -157,6 +166,8 @@ int jack_process(jack_nframes_t nframes, void *arg)
     }
 
     sem_post(ctx->sem);
+
+    return 0;
 }
 
 /*
