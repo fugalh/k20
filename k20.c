@@ -105,7 +105,7 @@ int main(int argc, char **argv)
         if (ctx.overs > 0)
             printf("    \e[41;37m %d \e[0m", ctx.overs);
 #ifdef DEBUG
-        printf(" %d %d", (int)ctx.peak, scale(ctx.peak));
+        printf(" %d %d %d", (int)ctx.rms, (int)ctx.peak, (int)ctx.maxpeak);
 #endif
         printf("\r");
 
