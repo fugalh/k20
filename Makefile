@@ -7,7 +7,7 @@ k20: $(objects)
 
 options.o: options.h options.c
 options.h: options.opts
-	opg $<
+	./opg $<
 clean:
 	rm -f k20 *.o options.[hc]
 
