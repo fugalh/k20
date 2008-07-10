@@ -13,7 +13,7 @@
 
 int scale(float dbfs);
 
-int main(int argc, char **argv)
+int main(int argc, char *const *argv)
 {
     struct options opts = {0, "k20"};
     parse_options(&argc, &argv, &opts);
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
     int i;
     for (i=0; i<argc; i++)
     {
-        char **ports = jack_get_ports(ctx.jack, "in", 0, 0);
+        const char **ports = jack_get_ports(ctx.jack, "in", 0, 0);
         if (ports)
         {
             int ret = jack_connect(ctx.jack, argv[i], ports[0]);
