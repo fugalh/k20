@@ -19,6 +19,7 @@ int main(int argc, char *const *argv)
     parse_options(&argc, &argv, &opts);
 
     struct context ctx = {};
+    ctx.dump = opts.d;
     
     // JACK initialization
     ctx.jack = jack_client_open(opts.n, 0, 0);
@@ -68,7 +69,7 @@ int main(int argc, char *const *argv)
         }
     }
 
-    if (opts.d)
+    if (ctx.dump)
     {
         // dump
         puts("# sec avg peak maxpeak overs (dB)");

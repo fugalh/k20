@@ -25,6 +25,7 @@ struct context {
     struct meter m;
     sem_t *sem;
     int frames;
+    int dump;
 };
 
 int jack_process(jack_nframes_t, void*);

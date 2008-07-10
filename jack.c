@@ -54,8 +54,6 @@ void rms(struct meter *m, float x0)
     m->y1 = m->y0;
 }
 
-// XXX not sure about the ballistics. Right now, just linear falloff which
-// doesn't seem quite right.
 int jack_process(jack_nframes_t nframes, void *arg)
 {
     struct context *ctx = (struct context*)arg;
@@ -75,8 +73,14 @@ int jack_process(jack_nframes_t nframes, void *arg)
             peak = x;
     }
     peak = dbfs(peak);
-    m->peak -= s * 26/3;
-    if (peak > m->peak)
+    if (!ctx->dump)
+    {
+        // don't do peak decay in dump mode 
+        m->peak -= s * 26/3;
+        if (peak > m->peak)
+            m->peak = peak;
+    }
+    else
         m->peak = peak;
 
     // max peak
