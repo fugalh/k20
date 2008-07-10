@@ -76,7 +76,7 @@ int main(int argc, char *const *argv)
         struct meter *m = &ctx.m;
         while (sem_wait(ctx.sem) != -1)
         {
-            printf("%g %g %g %g %d\n", (float)ctx.frames / sr, m->rms, m->peak, m->maxpeak, m->overs);
+            printf("%g %g %g %g %d\n", (float)ctx.frames / sr, m->rms+20, m->peak+20, m->maxpeak+20, m->overs);
         }
     } else {
         // meter

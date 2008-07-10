@@ -10,6 +10,15 @@ floating point; 0dB == 1.0).
 
 Hit enter to reset peaks/overs.
 
+-d invokes dump mode, which instead of displaying a meter dumps data to a file
+suitable for e.g. gnuplot. See k20.plot for an example plot, i.e.
+
+    k20 -d system:capture_1 > k20.dat
+    gnuplot k20.plot
+
+In dump mode, there is no peak falloff (peaks are instantaneous), and values
+are plotted once per JACK period.
+
 1. http://www.digido.com/bob-katz/level-practices-part-2-includes-the-k-system.html
 2. http://jackaudio.org
 3. http://tinyurl.com/rmslpf
