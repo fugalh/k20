@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <semaphore.h>
@@ -15,14 +16,12 @@ int scale(float dbfs);
 int main(int argc, char **argv)
 {
     struct options opts = {0, "k20"};
-    parse_options(&argc, argv, &opts);
+    parse_options(&argc, &argv, &opts);
 
     struct context ctx;
 
     ctx.m.peak = ctx.m.rms = ctx.m.maxpeak = dbfs(0);
     ctx.m.overs = 0;
-    printf("-70   60   50   40   30        20   15   10  6  3  0  3  6   10   15   20+\n");
-    printf(" |    |    |    |    |         |    |    |   |  |  |  |  |   |    |    |\n");
     
     // JACK initialization
     ctx.jack = jack_client_open(opts.n, 0, 0);
@@ -51,6 +50,23 @@ int main(int argc, char **argv)
 
     jack_activate(ctx.jack);
 
+    int i;
+    for (i=0; i<argc; i++)
+    {
+        char **ports = jack_get_ports(ctx.jack, "in", 0, 0);
+        if (ports)
+        {
+            int ret = jack_connect(ctx.jack, argv[i], ports[0]);
+            if (ret != 0 && ret != EEXIST)
+            {
+                fprintf(stderr, "Couldn't connect to port %s.\n", argv[i]);
+            }
+            free(ports);
+        }
+    }
+
+    printf("-70   60   50   40   30        20   15   10  6  3  0  3  6   10   15   20+\n");
+    printf(" |    |    |    |    |         |    |    |   |  |  |  |  |   |    |    |\n");
     while (1)
     {
         // reset?
