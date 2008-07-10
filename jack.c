@@ -19,6 +19,7 @@ void init_meter(struct meter *m, jack_nframes_t Fs)
     m->b2 = (K2 - KQ + 1.0)/(K2 + KQ + 1.0);
     m->x1 = m->x2 = m->y0 = m->y1 = m->y2 = 0;
     m->rms = m->peak = m->maxpeak = dbfs(0);
+    m->overs = 0;
 }
 
 void rms(struct meter *m, float x0)
@@ -99,6 +100,8 @@ int jack_process(jack_nframes_t nframes, void *arg)
             c = 0;
     }
 
+    ctx->frames += nframes;
+    sem_post(ctx->sem);
     return 0;
 }
 

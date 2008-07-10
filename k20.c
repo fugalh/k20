@@ -2,10 +2,10 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <semaphore.h>
 #include <math.h>
 #include <string.h>
 #include <sys/select.h>
+#include <sys/time.h>
 
 #include "ringbuffer.h"
 #include "options.h"
@@ -18,10 +18,7 @@ int main(int argc, char *const *argv)
     struct options opts = {0, "k20"};
     parse_options(&argc, &argv, &opts);
 
-    struct context ctx;
-
-    ctx.m.peak = ctx.m.rms = ctx.m.maxpeak = dbfs(0);
-    ctx.m.overs = 0;
+    struct context ctx = {};
     
     // JACK initialization
     ctx.jack = jack_client_open(opts.n, 0, 0);
@@ -47,6 +44,12 @@ int main(int argc, char *const *argv)
 
     jack_nframes_t sr = jack_get_sample_rate(ctx.jack);
     init_meter(&ctx.m, sr);
+    ctx.sem = sem_open(jack_get_client_name(ctx.jack), O_CREAT, 0600, 0);
+    if (ctx.sem == SEM_FAILED)
+    {
+        perror("Opening semaphore");
+        exit(1);
+    }
 
     jack_activate(ctx.jack);
 
@@ -65,45 +68,57 @@ int main(int argc, char *const *argv)
         }
     }
 
-    printf("-70   60   50   40   30        20   15   10  6  3  0  3  6   10   15   20+\n");
-    printf(" |    |    |    |    |         |    |    |   |  |  |  |  |   |    |    |\n");
-    while (1)
+    if (opts.d)
     {
-        // reset?
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(fileno(stdin), &readfds);
-        struct timeval tv = {0,40000};
-        if (select(fileno(stdin)+1, &readfds, 0, 0, &tv))
+        // dump
+        puts("# sec avg peak maxpeak overs (dB)");
+        struct meter *m = &ctx.m;
+        while (sem_wait(ctx.sem) != -1)
         {
-            char buf[1024];
-            fgets(buf, 1024, stdin);
-            ctx.m.overs = 0;
-            ctx.m.maxpeak = ctx.m.peak = dbfs(0);
+            printf("%g %g %g %g %d\n", (float)ctx.frames / sr, m->rms, m->peak, m->maxpeak, m->overs);
         }
+    } else {
+        // meter
+        printf("-70   60   50   40   30        20   15   10  6  3  0  3  6   10   15   20+\n");
+        printf(" |    |    |    |    |         |    |    |   |  |  |  |  |   |    |    |\n");
+        while (1)
+        {
+            // reset?
+            fd_set readfds;
+            FD_ZERO(&readfds);
+            FD_SET(fileno(stdin), &readfds);
+            struct timeval tv = {0,40000};
+            if (select(fileno(stdin)+1, &readfds, 0, 0, &tv))
+            {
+                char buf[1024];
+                fgets(buf, 1024, stdin);
+                ctx.m.overs = 0;
+                ctx.m.maxpeak = ctx.m.peak = dbfs(0);
+            }
 
-        char meter[72];
+            char meter[72];
 
-        memset(meter, ' ', 71);
-        meter[71] = 0;
-        int p = scale(ctx.m.rms);
-        if (p >= 0)
-            memset(meter, '#', p);
-        p = scale(ctx.m.peak)-1;
-        if (p >= 0)
-            meter[p] = '#';
-        p = scale(ctx.m.maxpeak)-1;
-        if (p >= 0)
-            meter[p] = '#';
+            memset(meter, ' ', 71);
+            meter[71] = 0;
+            int p = scale(ctx.m.rms);
+            if (p >= 0)
+                memset(meter, '#', p);
+            p = scale(ctx.m.peak)-1;
+            if (p >= 0)
+                meter[p] = '#';
+            p = scale(ctx.m.maxpeak)-1;
+            if (p >= 0)
+                meter[p] = '#';
 
-        printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.16s\e[0m", meter, meter+50, meter+55);
-        if (ctx.m.overs > 0)
-            printf("    \e[41;37m %d \e[0m", ctx.m.overs);
-        if (opts.v) // verbose
-            printf(" %.1f %.1f %.1f", ctx.m.rms, ctx.m.peak, ctx.m.maxpeak);
-        printf("\r");
+            printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.16s\e[0m", meter, meter+50, meter+55);
+            if (ctx.m.overs > 0)
+                printf("    \e[41;37m %d \e[0m", ctx.m.overs);
+            if (opts.v) // verbose
+                printf(" %.1f %.1f %.1f", ctx.m.rms, ctx.m.peak, ctx.m.maxpeak);
+            printf("\r");
 
-        fflush(stdout);
+            fflush(stdout);
+        }
     }
 
     jack_deactivate(ctx.jack);

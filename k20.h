@@ -4,6 +4,7 @@
 #include <jack/jack.h>
 #include <jack/ringbuffer.h>
 #include <math.h>
+#include <semaphore.h>
 
 #define min(x,y) ((x>y)?y:x)
 #define max(x,y) ((x<y)?y:x)
@@ -22,6 +23,8 @@ struct meter {
 struct context {
     jack_client_t *jack;
     struct meter m;
+    sem_t *sem;
+    int frames;
 };
 
 int jack_process(jack_nframes_t, void*);
