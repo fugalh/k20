@@ -1,6 +1,2 @@
-- yikes! both peak and rms are completely wrong. peak is -16dB from where it
-  should be and rms is abt -19dB off.
-- switch out rms for vu (vu.txt)
 - multiple meters
-- options
 - k14 and k12?

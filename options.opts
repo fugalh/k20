@@ -1,3 +1,3 @@
 usage: k20 [options] [port]
--d --debug bool Enable debug output (> 80 characters)
+-v --verbose bool Enable verbose output (wide terminal needed)
 -n --name=k20 char* JACK client name

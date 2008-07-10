@@ -1,4 +1,5 @@
 LDFLAGS+=-lncurses -ljack -lm
+PREFIX=/usr/local
 objects=ringbuffer.o k20.o jack.o options.o
 all: options.h k20
 
@@ -10,4 +11,11 @@ options.h: options.opts
 clean:
 	rm -f k20 *.o options.[hc]
 
-.PHONY: clean
+install: all
+	install -d $(PREFIX)/bin
+	install -t $(PREFIX)/bin k20
+
+uninstall:
+	rm -f $(PREFIX)/bin/k20
+
+.PHONY: clean install

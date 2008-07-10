@@ -1,8 +1,6 @@
 Simple ANSI terminal K-20 meter[1] for JACK[2].
 
-Currently, the RMS calculation is instant-rise, 300ms fall, and is calculated
-over the jack buffer. This needs fixing. Should(?) be 300ms rise and fall with
-an appropriate (less arbitrary) window.
+The averaging meter is a 2nd order filter to emulate a VU meter[3].
 
 The peak is instant-rise and falls linearly at 26 dB / 3 sec.
 
@@ -14,3 +12,4 @@ Hit enter to reset peaks/overs.
 
 1. http://www.digido.com/bob-katz/level-practices-part-2-includes-the-k-system.html
 2. http://jackaudio.org
+3. http://tinyurl.com/rmslpf

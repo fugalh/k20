@@ -1,5 +1,58 @@
 #include "k20.h"
 
+float dbfs(float amplitude) 
+{
+    return 20*log10(max(amplitude, 0));
+}
+
+void init_meter(struct meter *m, jack_nframes_t Fs)
+{
+    // See http://www.earlevel.com/Digital%20Audio/Bilinear.html
+    float Fc = 2.224, Q = 0.6053;
+    float K = tan(M_PI * Fc/Fs);
+    float K2 = K*K;
+    float KQ = K/Q;
+    m->a0 = K2/(K2 + KQ + 1.0);
+    m->a1 = 2*m->a0;
+    m->a2 = m->a0;
+    m->b1 = 2*(K2 - 1.0)/(K2 + KQ + 1.0);
+    m->b2 = (K2 - KQ + 1.0)/(K2 + KQ + 1.0);
+    m->x1 = m->x2 = m->y0 = m->y1 = m->y2 = 0;
+    m->rms = m->peak = m->maxpeak = dbfs(0);
+}
+
+void rms(struct meter *m, float x0)
+{
+    /*
+                     M
+                    SUM a(k+1) z^(-k)
+                    k=0
+        H(z) = ----------------------
+                     N
+                1 + SUM b(k+1) z^(-k)
+                    k=1
+       so, 
+        
+        y(n) = sum(k=0..M; a(k+1) x(n-k)) - sum(k=1..N; b(k+1) y(n-k))
+
+    */
+
+    x0 = x0*x0;
+
+    // calculate
+    m->y0 = m->a0 * x0 + m->a1 * m->x1 + m->a2 * m->x2 - 
+                        (m->b1 * m->y1 + m->b2 * m->y2);
+    // avoid a sqrt by dividing log by 2.
+    // adjust up for AES-17 (not sure why it's off by about 1.4 instead of 3)
+    m->rms = 10*log10(m->y0) + 1.4;
+
+    // update
+    m->x2 = m->x1;
+    m->x1 = x0;
+    m->y2 = m->y1;
+    m->y1 = m->y0;
+}
+
 // XXX not sure about the ballistics. Right now, just linear falloff which
 // doesn't seem quite right.
 int jack_process(jack_nframes_t nframes, void *arg)
@@ -30,18 +83,11 @@ int jack_process(jack_nframes_t nframes, void *arg)
         m->maxpeak = m->peak;
 
     // RMS
-    ringbuffer_read_advance(m->ring, nframes);
-    ringbuffer_write(m->ring, buf, nframes);
-    int c = (int)(sr * 0.3);
-    float rmsbuf[c];
-    ringbuffer_peek(m->ring, rmsbuf, c);
-    float sum = 0;
-    for (i=0; i<c; i++)
-        sum += rmsbuf[i]*rmsbuf[i];
-    m->rms = dbfs(sqrt(sum/c)); 
+    for (i=0; i<nframes; i++)
+        rms(m,buf[i]);
 
     // overs
-    c = 0;
+    int c = 0;
     for (i=0; i<nframes; i++)
     {
         float x = fabsf(buf[i]);

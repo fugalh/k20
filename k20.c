@@ -11,7 +11,6 @@
 #include "k20.h"
 
 int scale(float dbfs);
-float dbfs(float amplitude) { return 20*log(max(amplitude, 0) / 1.0); }
 
 int main(int argc, char **argv)
 {
@@ -48,11 +47,7 @@ int main(int argc, char **argv)
     }
 
     jack_nframes_t sr = jack_get_sample_rate(ctx.jack);
-    ctx.m.ring = ringbuffer_create(sr * 0.3);
-    if (ctx.m.ring == 0)
-    {
-        fprintf(stderr, "Failed to create ringbuffer.\n");
-    }
+    init_meter(&ctx.m, sr);
 
     jack_activate(ctx.jack);
 
@@ -88,8 +83,8 @@ int main(int argc, char **argv)
         printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.16s\e[0m", meter, meter+50, meter+55);
         if (ctx.m.overs > 0)
             printf("    \e[41;37m %d \e[0m", ctx.m.overs);
-        if (opts.d)
-            printf(" %d %d %d", (int)ctx.m.rms, (int)ctx.m.peak, (int)ctx.m.maxpeak);
+        if (opts.v) // verbose
+            printf(" %.1f %.1f %.1f", ctx.m.rms, ctx.m.peak, ctx.m.maxpeak);
         printf("\r");
 
         fflush(stdout);
@@ -103,9 +98,9 @@ int scale(float dbfs)
 {
     int x;
     if (dbfs < -50)
-        x = (90+dbfs)/2;
+        x = round((90+dbfs)/2.0);
     else
-        x = 71+dbfs;
+        x = round(71.0+dbfs);
 
     return max(0, min(x, 71));
 }
