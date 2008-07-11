@@ -57,15 +57,14 @@ int main(int argc, char *const *argv)
     int i;
     for (i=0; i<argc; i++)
     {
-        const char **ports = jack_get_ports(ctx.jack, "in", 0, 0);
-        if (ports)
+        char *n = jack_get_client_name(ctx.jack);
+        char *p = alloca(strlen(n) + 3 + 1);
+        strncpy(p, n, strlen(n));
+        strncpy(p+strlen(n), ":in", 3);
+        int ret = jack_connect(ctx.jack, argv[i], p);
+        if (ret != 0 && ret != EEXIST)
         {
-            int ret = jack_connect(ctx.jack, argv[i], ports[0]);
-            if (ret != 0 && ret != EEXIST)
-            {
-                fprintf(stderr, "Couldn't connect to port %s.\n", argv[i]);
-            }
-            free(ports);
+            fprintf(stderr, "Couldn't connect to port %s.\n", argv[i]);
         }
     }
 
