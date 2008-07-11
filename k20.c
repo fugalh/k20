@@ -94,6 +94,7 @@ int main(int argc, char *const *argv)
                 fgets(buf, 1024, stdin);
                 ctx.m.overs = 0;
                 ctx.m.maxpeak = ctx.m.peak = dbfs(0);
+                printf("\e[A"); // up a line (counter the newline)
             }
 
             char meter[72];
