@@ -15,7 +15,7 @@ int scale(float dbfs);
 
 int main(int argc, char *const *argv)
 {
-    struct options opts = {0, "k20"};
+    struct options opts = {0, "k20", 0, 30};
     parse_options(&argc, &argv, &opts);
 
     struct context ctx = {};
@@ -87,7 +87,7 @@ int main(int argc, char *const *argv)
             fd_set readfds;
             FD_ZERO(&readfds);
             FD_SET(fileno(stdin), &readfds);
-            struct timeval tv = {0,40000};
+            struct timeval tv = {0, 1000000 * 1.0/opts.r};
             if (select(fileno(stdin)+1, &readfds, 0, 0, &tv))
             {
                 char buf[1024];
@@ -113,7 +113,7 @@ int main(int argc, char *const *argv)
 
             printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.16s\e[0m", meter, meter+50, meter+55);
             if (ctx.m.overs > 0)
-                printf("    \e[41;37m %d \e[0m", ctx.m.overs);
+                printf("  \e[41;37m %d \e[0m", ctx.m.overs);
             if (opts.v) // verbose
                 printf(" %.1f %.1f %.1f", ctx.m.rms, ctx.m.peak, ctx.m.maxpeak);
             printf("\r");
