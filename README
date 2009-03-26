@@ -19,6 +19,6 @@ suitable for e.g. gnuplot. See k20.gp for an example plot, i.e.
 In dump mode, there is no peak falloff (peaks are instantaneous), and values
 are plotted once per JACK period.
 
-1. http://www.digido.com/bob-katz/level-practices-part-2-includes-the-k-system.html
+1. http://www.digido.com/index.php?option=com_content&task=view&id=21&Itemid=2
 2. http://jackaudio.org
 3. http://tinyurl.com/rmslpf
