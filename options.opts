@@ -1,0 +1,5 @@
+usage: k20 [options] [port]
+-v --verbose bool Enable verbose output (wide terminal needed)
+-n --name=k20 char* JACK client name
+-d --dump bool Dump values for machine consumption (e.g. gnuplot)
+-r --rate=30 float Refresh rate

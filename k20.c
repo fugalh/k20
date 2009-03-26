@@ -1,55 +1,38 @@
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <jack/jack.h>
-#include <semaphore.h>
 #include <math.h>
 #include <string.h>
+#include <sys/select.h>
+#include <sys/time.h>
 #include <fcntl.h>
 
+#include "ringbuffer.h"
+#include "options.h"
+#include "k20.h"
 
-struct context {
-    sem_t *sem;
-    jack_client_t *jack;
-    jack_port_t *in;
-    float peak; // dBFS
-    float rms;  // dBFS
-    float maxpeak; // dBFS
-    int overs;
-};
-
-#define min(x,y) (((x)>(y))?(y):(x))
-#define max(x,y) (((x)<(y))?(y):(x))
-int jack_process(jack_nframes_t, void*);
-float dbfs(float amplitude) { return 20*log(max(amplitude, 0) / 1.0); }
 int scale(float dbfs);
 
-int main(int argc, char **argv)
+int main(int argc, char *const *argv)
 {
-    struct context ctx;
-    ctx.peak = ctx.rms = ctx.maxpeak = dbfs(0);
-    ctx.overs = 0;
-    printf("-70   60   50   40   30        20   15   10  6  3  0  3  6   10   15   20+\n");
-    printf(" |    |    |    |    |         |    |    |   |  |  |  |  |   |    |    |\n");
+    struct options opts = {0, "k20", 0, 30};
+    parse_options(&argc, &argv, &opts);
+
+    struct context ctx = {};
+    ctx.dump = opts.d;
     
     // JACK initialization
-    ctx.jack = jack_client_open("k20", 0, 0);
+    ctx.jack = jack_client_open(opts.n, 0, 0);
     if (!ctx.jack)
     {
         fprintf(stderr, "Failed to create JACK client.\n");
         exit(1);
     }
 
-    ctx.sem = sem_open(jack_get_client_name(ctx.jack), O_CREAT, 0600, 0);
-    if (ctx.sem == SEM_FAILED)
-    {
-        perror("opening semaphore");
-        exit(1);
-    }
-
-    ctx.in = jack_port_register(ctx.jack, "in", JACK_DEFAULT_AUDIO_TYPE, 
-                                JackPortIsInput|JackPortIsTerminal, 0);
-    if (!ctx.in)
+    ctx.m.port = jack_port_register(ctx.jack, "in", JACK_DEFAULT_AUDIO_TYPE, 
+                                    JackPortIsInput|JackPortIsTerminal, 0);
+    if (!ctx.m.port)
     {
         fprintf(stderr, "Failed to create input port.\n");
         exit(1);
@@ -61,33 +44,83 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    jack_nframes_t sr = jack_get_sample_rate(ctx.jack);
+    init_meter(&ctx.m, sr);
+    ctx.sem = sem_open(jack_get_client_name(ctx.jack), O_CREAT, 0600, 0);
+    if (ctx.sem == SEM_FAILED)
+    {
+        perror("Opening semaphore");
+        exit(1);
+    }
+
     jack_activate(ctx.jack);
 
-    while (sem_wait(ctx.sem) != -1)
+    int i;
+    for (i=0; i<argc; i++)
     {
-        char meter[71];
+        char *n = jack_get_client_name(ctx.jack);
+        char *p = alloca(strlen(n) + 3 + 1);
+        strncpy(p, n, strlen(n));
+        strncpy(p+strlen(n), ":in", 3);
+        int ret = jack_connect(ctx.jack, argv[i], p);
+        if (ret != 0 && ret != EEXIST)
+        {
+            fprintf(stderr, "Couldn't connect to port %s.\n", argv[i]);
+        }
+    }
 
-        memset(meter, ' ', 70);
-        meter[70] = 0;
-        int p = scale(ctx.rms);
-        if (p >= 0)
-            memset(meter, '#', p);
-        p = scale(ctx.peak)-1;
-        if (p >= 0)
-            meter[p] = '#';
-        p = scale(ctx.maxpeak)-1;
-        if (p >= 0)
-            meter[p] = '#';
+    if (ctx.dump)
+    {
+        // dump
+        puts("# sec avg peak maxpeak overs (dB)");
+        struct meter *m = &ctx.m;
+        while (sem_wait(ctx.sem) != -1)
+        {
+            printf("%g %g %g %g %d\n", (float)ctx.frames / sr, m->rms+20, m->peak+20, m->maxpeak+20, m->overs);
+        }
+    } else {
+        // meter
+        printf("-70   60   50   40   30        20   15   10  6  3  0  3  6   10   15   20+\n");
+        printf(" |    |    |    |    |         |    |    |   |  |  |  |  |   |    |    |\n");
+        while (1)
+        {
+            // reset?
+            fd_set readfds;
+            FD_ZERO(&readfds);
+            FD_SET(fileno(stdin), &readfds);
+            struct timeval tv = {0, 1000000 * 1.0/opts.r};
+            if (select(fileno(stdin)+1, &readfds, 0, 0, &tv))
+            {
+                char buf[1024];
+                fgets(buf, 1024, stdin);
+                ctx.m.overs = 0;
+                ctx.m.maxpeak = ctx.m.peak = dbfs(0);
+                printf("\e[A"); // up a line (counter the newline)
+            }
 
-        printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.15s\e[0m", meter, meter+50, meter+55);
-        if (ctx.overs > 0)
-            printf("    \e[41;37m %d \e[0m", ctx.overs);
-#ifdef DEBUG
-        printf(" %d %d", (int)ctx.peak, scale(ctx.peak));
-#endif
-        printf("\r");
+            char meter[72];
 
-        fflush(stdout);
+            memset(meter, ' ', 71);
+            meter[71] = 0;
+            int p = scale(ctx.m.rms);
+            if (p >= 0)
+                memset(meter, '#', p);
+            p = scale(ctx.m.peak)-1;
+            if (p >= 0)
+                meter[p] = '#';
+            p = scale(ctx.m.maxpeak)-1;
+            if (p >= 0)
+                meter[p] = '#';
+
+            printf(" \e[K\e[32m%.50s\e[33m%.5s\e[31m%.16s\e[0m", meter, meter+50, meter+55);
+            if (ctx.m.overs > 0)
+                printf("  \e[41;37m %d \e[0m", ctx.m.overs);
+            if (opts.v) // verbose
+                printf(" %.1f %.1f %.1f", ctx.m.rms, ctx.m.peak, ctx.m.maxpeak);
+            printf("\r");
+
+            fflush(stdout);
+        }
     }
 
     jack_deactivate(ctx.jack);
@@ -98,66 +131,11 @@ int scale(float dbfs)
 {
     int x;
     if (dbfs < -50)
-        x = (90+dbfs)/2;
+        x = round((90+dbfs)/2.0);
     else
-        x = 70+dbfs;
+        x = round(71.0+dbfs);
 
-    return max(0, min(x, 70));
-}
-
-// XXX not sure about the ballistics. Right now, just linear falloff which
-// doesn't seem quite right.
-int jack_process(jack_nframes_t nframes, void *arg)
-{
-    struct context *ctx = (struct context*)arg;
-
-    jack_nframes_t sr = jack_get_sample_rate(ctx->jack);
-    float s = (float)nframes/sr;
-    float *buf = (float*)jack_port_get_buffer(ctx->in, nframes);
-
-    // peak
-    float peak = 0;
-    int i;
-    for (i=0; i<nframes; i++)
-    {
-        float x = fabsf(buf[i]);
-        if (x > peak)
-            peak = x;
-    }
-    peak = dbfs(peak);
-    ctx->peak -= s * 26/3;
-    if (peak > ctx->peak)
-        ctx->peak = peak;
-
-    // max peak
-    if (ctx->peak > ctx->maxpeak)
-        ctx->maxpeak = ctx->peak;
-
-    // RMS
-    // XXX the buffer is probably not the appropriate window ?
-    // XXX instantaneous rise isn't right, probably
-    float sum = 0;
-    for (i=0; i<nframes; i++)
-        sum += buf[i]*buf[i];
-    float rms = dbfs(sqrt(sum/nframes)); 
-    ctx->rms -= s * 70/0.3; // 300ms fall time
-    if (rms > ctx->rms)
-        ctx->rms = rms;
-
-    // overs
-    int c = 0;
-    for (i=0; i<nframes; i++)
-    {
-        float x = fabsf(buf[i]);
-        if (x >= 1.0)
-        {
-            if (++c == 3)
-                ctx->overs++;
-        } else
-            c = 0;
-    }
-
-    sem_post(ctx->sem);
+    return max(0, min(x, 71));
 }
 
 /*
